@@ -43,14 +43,14 @@ class DETR(nn.Module):
         self.class_embed = nn.Linear(hidden_dim, num_classes + 1)
         self.bbox_embed = MLP(hidden_dim, hidden_dim, 4, 3)
         # self.query_embed = nn.Embedding(num_queries, hidden_dim)
-        self.query_embed = nn.Conv2d(2048, 256, kernel_size = 1)
+        self.query_embed2 = nn.Conv2d(2048, 256, kernel_size = 1)
         self.input_proj = nn.Conv2d(backbone.num_channels, hidden_dim, kernel_size=1)
         self.backbone = backbone
         self.aux_loss = aux_loss
 
         #########################################################################################
-        self.rcnn_model=fasterrcnn_resnet50_fpn(from_pretrained=True).to('cpu')
-        # self.rcnn_model.load_state_dict(torch.load('/home/elicer/rcnn_with_detrback.pth', map_location='cpu'))
+        self.rcnn_model=fasterrcnn_resnet50_fpn(from_pretrained=True).to('cuda')
+        self.rcnn_model.load_state_dict(torch.load('/content/DETR-RPN-ver2-model/rcnn_with_detrback.pth', map_location='cuda'))
         self.rcnn_model.eval()
         #########################################################################################
 
@@ -60,9 +60,10 @@ class DETR(nn.Module):
 
         temp={k:v.tensors for k,v in enumerate(features)}
         self.rcnn_model.eval()
-        r_features=self.rcnn_model.backbone.fpn(temp)
-        proposals, _  = self.rcnn_model.rpn(images, r_features)
-        proposals = torch.stack(proposals)[:, :100, :]
+        with torch.no_grad():
+            r_features=self.rcnn_model.backbone.fpn(temp)
+            proposals, _  = self.rcnn_model.rpn(images, r_features)
+            proposals = torch.stack(proposals)[:, :100, :]
 
         b_size = proposals.size(0) 
         num_proposals = proposals.size(1)  # 100
@@ -84,7 +85,7 @@ class DETR(nn.Module):
         output_size = (1,1)  # 출력 크기 (높이, 너비)
         b,c,w,h = temp[3].shape
         roi_align = RoIAlign(output_size, spatial_scale=w/800, sampling_ratio=-1)
-        features_from_rpn = roi_align(temp[3], rois.to('cpu'))
+        features_from_rpn = roi_align(temp[3], rois.to('cuda'))
 
         return features_from_rpn
 
@@ -112,7 +113,7 @@ class DETR(nn.Module):
 
         #######################################################################
         features_from_rpn = self.get_rpn(features,samples.tensors,b_size)
-        qeury_embed_new = self.query_embed(features_from_rpn)
+        qeury_embed_new = self.query_embed2(features_from_rpn)
         #######################################################################
 
         src, mask = features[-1].decompose()
@@ -367,6 +368,8 @@ def build(args):
     # For more details on this, check the following discussion
     # https://github.com/facebookresearch/detr/issues/108#issuecomment-650269223
     num_classes = 20 if args.dataset_file != 'coco' else 91
+    if args.dataset_file == 'Pascal':
+        num_classes = 21
     if args.dataset_file == "coco_panoptic":
         # for panoptic, we just add a num_classes that is large enough to hold
         # max_obj_id + 1, but the exact value doesn't really matter
