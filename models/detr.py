@@ -82,8 +82,9 @@ class DETR(nn.Module):
         rois[:, 4] = ymax
 
         output_size = (1,1)  # 출력 크기 (높이, 너비)
-        roi_align = RoIAlign(output_size, spatial_scale=25/800, sampling_ratio=-1)
-        features_from_rpn = roi_align(temp[3], rois)
+        b,c,w,h = temp[3].shape
+        roi_align = RoIAlign(output_size, spatial_scale=w/800, sampling_ratio=-1)
+        features_from_rpn = roi_align(temp[3], rois.to('cpu'))
 
         return features_from_rpn
 
