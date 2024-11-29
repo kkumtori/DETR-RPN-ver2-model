@@ -1,13 +1,11 @@
 .nfs*
-
 *.pyc
 .dumbo.json
 .DS_Store
 .*.swp
-
 **/__pycache__/**
 .ipynb_checkpoints/
-datasets/Pascal/
+/datasets/Pascal/
 experiment-*
 *.tmp
 *.pkl
